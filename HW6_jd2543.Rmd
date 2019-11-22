@@ -1,0 +1,96 @@
+---
+title: "Support Vector Machines(SVMs) Tutorial"
+author: "James Davydov"
+date: "11/12/2019"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Support Vector Machines(SVMs)
+
+A Support Vector Machine (SVM) is a discriminative classifier formally defined by a separating hyperplane. Given labeled training data, the algorithm outputs an optimal hyperplane which categorizes new examples.
+
+```{r load relevant libraries, include=FALSE}
+library(tidyverse)
+library(mlbench)
+library(caret)
+library(pROC)
+```
+
+##Homework
+
+1. Choose an appropriate machine learning dataset and use SVM with two different kernels. Campare the results.
+```{r}
+heart <- read.csv("heart_tidy.csv", sep = ',', header = FALSE)
+
+set.seed(1127)
+
+n <- 0.70*nrow(heart)
+smp <- sample(nrow(heart), size = n, replace = FALSE)
+
+trainset <- heart[smp,]
+testset <- heart[-smp,]
+
+trainset[["V14"]] = factor(trainset[["V14"]])
+testset[["V14"]] = factor(testset[["V14"]])
+
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+```
+
+```{r svm linear}
+set.seed(1127)
+heart_linear <- train(V14 ~., data = trainset, method = "svmLinear",trControl=trctrl, preProcess = c("center", "scale"),
+                    tuneLength = 10)
+heart_linear
+
+heartlinearpred <- predict(heart_linear, newdata = testset)
+confusionMatrix(heartlinearpred, testset$V14, positive = "1")
+
+#83.3% accuracy on testset
+```
+
+```{r svm radial}
+set.seed(1127)
+heart_radial <- train(V14 ~., data = trainset, method = "svmRadial",trControl=trctrl, preProcess = c("center", "scale"),
+                    tuneLength = 10)
+heart_radial
+
+heartradialpred <- predict(heart_radial, newdata = testset)
+confusionMatrix(heartradialpred, testset$V14, positive = "1")
+
+#85.6% accuracy on testset
+```
+
+We use the heart disease dataset with our SVM training model. Using svmLinear kernel, we get an 83.3% predictive accuracy, and using svmRadial kernal we get an improved 85.6% predictive accuracy.
+
+2. Attempt using SVM after using a previously covered feature selection method. Do the results improve? Explain. 
+```{r feature selected svm}
+set.seed(1127)
+control = rfeControl(functions = caretFuncs, number = 2)
+
+heartrfe <- rfe(as.numeric(V14) ~., data = trainset, 
+                sizes = c(2, 5, 8, 13),
+                method = "svmRadial", trctrl=trctrl, rfeControl=control)
+heartrfe
+
+#Top 5 features selected by RFE are V8, V9, V10, V12, and V13
+```
+
+```{r}
+set.seed(1127)
+heart_radialrfe <- train(V14 ~ V12+V13+V8+V9+V10, data = trainset, method = "svmRadial",trControl=trctrl, preProcess =
+                        c("center", "scale"), tuneLength = 10)
+heart_radialrfe
+
+heartradrfepred <- predict(heart_radialrfe, newdata = testset)
+confusionMatrix(heartradrfepred, testset$V14, positive = "1")
+
+#82.2% accuracy
+```
+
+After selecting the top 5 predictive features of our data using RFE, we used those 5 features to train our svmRadial model. In theory, this was supposed to provide a better prediction accuracy due to the feature selection in our model, however this actually decreased our accuracy as compared to our svmRadial model without any feature selection. Better understanding of the code, tuning factors, and feature selection model is needed in order to fully understand the results and obtain an improved accuracy of our predictive model with selected features. 
